@@ -6,16 +6,25 @@ use std::io::Read;
 use std::io::BufWriter;
 use std::io::Write;
 
-fn main_decode(filename: &String) -> Result<i8,io::Error> {
-    let fin = BufReader::new(fs::File::open(filename)?);
-    let mut fout = BufWriter::new(fs::File::create("bocu-1.txt")?);
+mod bocu1;
+use bocu1::Boku1Rx;
+
+fn decode_file(fin: &mut BufReader<fs::File>, fout: &mut BufWriter<fs::File>) -> Result<i8,io::Error> {
+    let rx = Boku1Rx::new();
 
     for b in fin.bytes() {
-        // TODO convert
-        fout.write(&[b?])?;
+        let c = rx.decode_bocu1(b?);
+        fout.write(&[c as u8])?;
     }
 
     Ok(1)
+}
+
+fn main_decode(filename: &String) -> Result<i8,io::Error> {
+    let mut fin = BufReader::new(fs::File::open(filename)?);
+    let mut fout = BufWriter::new(fs::File::create("bocu-1.txt")?);
+
+    decode_file(&mut fin, &mut fout)
 }
 
 fn main() {
