@@ -1,31 +1,62 @@
 use std::env;
 use std::io;
 use std::fs;
+use std::fmt;
 use std::io::BufReader;
 use std::io::Read;
 use std::io::BufWriter;
 use std::io::Write;
 
 mod bocu1;
-use bocu1::Boku1Rx;
+use bocu1::Bocu1Rx;
 
-fn decode_file(fin: &mut BufReader<fs::File>, fout: &mut BufWriter<fs::File>) -> Result<i8,io::Error> {
-    let mut rx = Boku1Rx::new();
+#[derive(Debug)]
+enum CliError {
+    Io(io::Error),
+    Bocu1(&'static str),
+}
+
+impl fmt::Display for CliError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CliError::Io(ref err) => err.fmt(f),
+            CliError::Bocu1(desc) => write!(f, "{}", desc),
+        }
+    }
+}
+
+impl std::error::Error for CliError {
+    fn description(&self) -> &str {
+        match *self {
+            CliError::Io(ref err) => err.description(),
+            CliError::Bocu1(desc) => desc,
+        }
+    }
+}
+
+impl From<io::Error> for CliError {
+    fn from(err: io::Error) -> CliError {
+        CliError::Io(err)
+    }
+}
+
+fn decode_file<R: Read, W: Write>(fin: &mut R, fout: &mut W) -> Result<i8, CliError> {
+    let mut rx = Bocu1Rx::new();
     let mut bytes: [u8; 4] = [0; 4];
 
     for b in fin.bytes() {
         let c = rx.decode_bocu1(b?);
 
         if c < -1 {
-            panic!("error: illegal BOCU-1 sequence at file byte index ");
+            return Err(CliError::Bocu1(
+                "Illegal BOCU-1 sequence at file byte index",
+            ));
         }
 
         if c >= 0 {
             match std::char::from_u32(c as u32) {
                 Some(v) => fout.write_fmt(format_args!("{}", v))?,
-                None => {
-                    panic!("Error");
-                }
+                None => return Err(CliError::Bocu1("Bocu1 convertion error")),
             };
         }
     }
@@ -33,7 +64,7 @@ fn decode_file(fin: &mut BufReader<fs::File>, fout: &mut BufWriter<fs::File>) ->
     Ok(1)
 }
 
-fn main_decode(filename: &String) -> Result<i8,io::Error> {
+fn main_decode(filename: &String) -> Result<i8, CliError> {
     let mut fin = BufReader::new(fs::File::open("bocu-1.txt")?);
     let mut fout = BufWriter::new(fs::File::create(filename)?);
 
