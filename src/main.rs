@@ -10,19 +10,32 @@ mod bocu1;
 use bocu1::Boku1Rx;
 
 fn decode_file(fin: &mut BufReader<fs::File>, fout: &mut BufWriter<fs::File>) -> Result<i8,io::Error> {
-    let rx = Boku1Rx::new();
+    let mut rx = Boku1Rx::new();
+    let mut bytes: [u8; 4] = [0; 4];
 
     for b in fin.bytes() {
         let c = rx.decode_bocu1(b?);
-        fout.write(&[c as u8])?;
+
+        if c < -1 {
+            panic!("error: illegal BOCU-1 sequence at file byte index ");
+        }
+
+        if c >= 0 {
+            match std::char::from_u32(c as u32) {
+                Some(v) => fout.write_fmt(format_args!("{}", v))?,
+                None => {
+                    panic!("Error");
+                }
+            };
+        }
     }
 
     Ok(1)
 }
 
 fn main_decode(filename: &String) -> Result<i8,io::Error> {
-    let mut fin = BufReader::new(fs::File::open(filename)?);
-    let mut fout = BufWriter::new(fs::File::create("bocu-1.txt")?);
+    let mut fin = BufReader::new(fs::File::open("bocu-1.txt")?);
+    let mut fout = BufWriter::new(fs::File::create(filename)?);
 
     decode_file(&mut fin, &mut fout)
 }
