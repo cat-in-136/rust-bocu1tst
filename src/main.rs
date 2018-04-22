@@ -42,7 +42,6 @@ impl From<io::Error> for CliError {
 
 fn decode_file<R: Read, W: Write>(fin: &mut R, fout: &mut W) -> Result<i8, CliError> {
     let mut rx = Bocu1Rx::new();
-    let mut bytes: [u8; 4] = [0; 4];
 
     for b in fin.bytes() {
         let c = rx.decode_bocu1(b?);
@@ -76,7 +75,7 @@ fn main() {
 
     let exit_val = if (args.len() == 3) && (args[1] == "encode") {
         unimplemented!("encode not implement yet");
-        0
+        //0
     } else if (args.len() == 3) && (args[1] == "decode") {
         match main_decode(&args[2]) {
             Ok(_) => 0,

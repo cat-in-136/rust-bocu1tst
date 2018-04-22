@@ -186,7 +186,7 @@ impl Bocu1Rx {
     pub fn decode_bocu1(&mut self, b: u8) -> i32 {
         let b = b as i32;
         let mut prev = self.prev;
-        let mut count = self.count;
+        let count;
 
         if prev == 0 {
             /* lenient handling of initial 0 values */
