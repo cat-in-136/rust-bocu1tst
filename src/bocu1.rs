@@ -92,50 +92,34 @@ impl Bocu1Tx {
     }
 
     fn encode_pack_diff(&self, diff: i32) -> i32 {
-        let mut diff = diff;
-        let lead: i32;
-        let count: i32;
-
-        if diff >= BOCU1_REACH_NEG_1 {
+        let (mut diff, lead, count) = if diff >= BOCU1_REACH_NEG_1 {
             /* mostly positive differences, and single-byte negative ones */
             if diff <= BOCU1_REACH_POS_1 {
                 /* single byte */
                 return 0x01000000 | (BOCU1_MIDDLE + diff);
             } else if diff <= BOCU1_REACH_POS_2 {
                 /* two bytes */
-                diff -= BOCU1_REACH_POS_1 + 1;
-                lead = BOCU1_START_POS_2;
-                count = 1;
+                (diff - (BOCU1_REACH_POS_1 + 1), BOCU1_START_POS_2, 1)
             } else if diff <= BOCU1_REACH_POS_3 {
                 /* three bytes */
-                diff -= BOCU1_REACH_POS_2 + 1;
-                lead = BOCU1_START_POS_3;
-                count = 2;
+                (diff - (BOCU1_REACH_POS_2 + 1), BOCU1_START_POS_3, 2)
             } else {
                 /* four bytes */
-                diff -= BOCU1_REACH_POS_3 + 1;
-                lead = BOCU1_START_POS_4;
-                count = 3;
+                (diff - (BOCU1_REACH_POS_3 + 1), BOCU1_START_POS_4, 3)
             }
         } else {
             /* two- and four-byte negative differences */
             if diff >= BOCU1_REACH_NEG_2 {
                 /* two bytes */
-                diff -= BOCU1_REACH_NEG_1;
-                lead = BOCU1_START_NEG_2;
-                count = 1;
+                (diff - BOCU1_REACH_NEG_1, BOCU1_START_NEG_2, 1)
             } else if diff >= BOCU1_REACH_NEG_3 {
                 /* three bytes */
-                diff -= BOCU1_REACH_NEG_2;
-                lead = BOCU1_START_NEG_3;
-                count = 2;
+                (diff - BOCU1_REACH_NEG_2, BOCU1_START_NEG_3, 2)
             } else {
                 /* four bytes */
-                diff -= BOCU1_REACH_NEG_3;
-                lead = BOCU1_START_NEG_4;
-                count = 3;
+                (diff - BOCU1_REACH_NEG_3, BOCU1_START_NEG_4, 3)
             }
-        }
+        };
 
         /* encode the length of the packed result */
         let mut result = if count < 3 {
@@ -145,19 +129,18 @@ impl Bocu1Tx {
         };
 
         /* calculate trail bytes like digits in itoa() */
-        let mut shift = 0;
-        let mut count = count;
-        while {
+        for i in 0..count {
+            let shift = i * 8;
             let (diff2, m) = negdivmod(diff, BOCU1_TRAIL_COUNT);
             diff = diff2;
             result |= bocu1_trail_to_byte(m) << shift;
-            shift += 8;
-            count -= 1;
-            count > 0
-        } { }
+        }
 
         /* add lead byte */
-        result |= (lead + diff) << shift;
+        {
+            let shift = count * 8;
+            result |= (lead + diff) << shift;
+        }
 
         result
     }

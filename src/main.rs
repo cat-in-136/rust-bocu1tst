@@ -52,10 +52,10 @@ fn encode_file<R: Read, W: Write>(fin: &mut R, fout: &mut W) -> Result<i8, CliEr
     for c in buffer.chars() {
         let c = tx.encode_bocu1(c as i32);
         let count = bocu1_length_from_packed(c);
-        if count >= 4 { fout.write(&[((c >> 24) & 0xFF) as u8]); }
-        if count >= 3 { fout.write(&[((c >> 16) & 0xFF) as u8]); }
-        if count >= 2 { fout.write(&[((c >>  8) & 0xFF) as u8]); }
-        if count >= 1 { fout.write(&[((c >>  0) & 0xFF) as u8]); }
+        for i in 0..count {
+            let shift = (count - 1 - i) * 8;
+            fout.write(&[((c >> shift) & 0xFF) as u8])?;
+        }
     }
     Ok(0)
 }
