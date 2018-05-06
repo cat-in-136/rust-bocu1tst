@@ -270,21 +270,22 @@ impl Bocu1Rx {
         if count == 1 {
             /* final trail byte, deliver a code point */
             let c = self.prev + c + t;
-            if 0 <= c && c <= 0x10ffff {
+            match c {
                 /* valid code point result */
-                self.prev = bocu1_prev(c);
-                self.count = 0;
-                return c;
-            } else {
+                0...0x10ffff => {
+                    self.prev = bocu1_prev(c);
+                    self.count = 0;
+                    return c;
+                },
                 /* illegal code point result */
-                self.prev = BOCU1_ASCII_PREV;
-                self.count = 0;
-                return -99;
-            }
-        }
-
+                _ => {
+                    self.prev = BOCU1_ASCII_PREV;
+                    self.count = 0;
+                    return -99;
+                },
+            };
         /* intermediate trail byte */
-        if count == 2 {
+        } else if count == 2 {
             self.diff = c + t * BOCU1_TRAIL_COUNT;
         } else
         /* count==3 */
@@ -353,18 +354,15 @@ fn bocu1_trail_to_byte(t: i32) -> i32 {
 
 fn bocu1_prev(c: i32) -> i32 {
     /* compute new prev */
-    if (0x3040 <= c) && (c <= 0x309f) {
+    match c {
         /* Hiragana is not 128-aligned */
-        0x3070
-    } else if (0x4e00 <= c) && (c <= 0x9fa5) {
+        0x3040...0x309f => 0x3070,
         /* CJK Unihan */
-        0x4e00 - BOCU1_REACH_NEG_2
-    } else if (0xac00 <= c) && (c <= 0xd7a3) {
+        0x4e00...0x9fa5 => 0x4e00 - BOCU1_REACH_NEG_2,
         /* Korean Hangul */
-        (0xd7a3 + 0xac00) / 2
-    } else {
+        0xac00...0xd7a3 => (0xd7a3 + 0xac00) / 2,
         /* mostly small scripts */
-        (c & (!0x7fi32)) + BOCU1_ASCII_PREV
+        _ => (c & (!0x7fi32)) + BOCU1_ASCII_PREV,
     }
 }
 
