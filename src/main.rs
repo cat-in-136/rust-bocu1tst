@@ -9,6 +9,8 @@ use std::io::Write;
 
 mod bocu1;
 use bocu1::Bocu1Rx;
+use bocu1::Bocu1Tx;
+use bocu1::bocu1_length_from_packed;
 
 #[derive(Debug)]
 enum CliError {
@@ -38,6 +40,31 @@ impl From<io::Error> for CliError {
     fn from(err: io::Error) -> CliError {
         CliError::Io(err)
     }
+}
+
+fn encode_file<R: Read, W: Write>(fin: &mut R, fout: &mut W) -> Result<i8, CliError> {
+    let mut tx = Bocu1Tx::new();
+    let mut buffer = String::new();
+
+    fin.read_to_string(&mut buffer)?;
+
+    let buffer = buffer;
+    for c in buffer.chars() {
+        let c = tx.encode_bocu1(c as i32);
+        let count = bocu1_length_from_packed(c);
+        if count >= 4 { fout.write(&[((c >> 24) & 0xFF) as u8]); }
+        if count >= 3 { fout.write(&[((c >> 16) & 0xFF) as u8]); }
+        if count >= 2 { fout.write(&[((c >>  8) & 0xFF) as u8]); }
+        if count >= 1 { fout.write(&[((c >>  0) & 0xFF) as u8]); }
+    }
+    Ok(0)
+}
+
+fn main_encode(filename: &String) -> Result<i8, CliError> {
+    let mut fin = BufReader::new(fs::File::open(filename)?);
+    let mut fout = BufWriter::new(fs::File::create("bocu-1.txt")?);
+
+    encode_file(&mut fin, &mut fout)
 }
 
 fn decode_file<R: Read, W: Write>(fin: &mut R, fout: &mut W) -> Result<i8, CliError> {
@@ -74,8 +101,13 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let exit_val = if (args.len() == 3) && (args[1] == "encode") {
-        unimplemented!("encode not implement yet");
-        //0
+        match main_encode(&args[2]) {
+            Ok(_) => 0,
+            Err(v) => {
+                eprintln!("Error: {:?}", v);
+                1
+            }
+        }
     } else if (args.len() == 3) && (args[1] == "decode") {
         match main_decode(&args[2]) {
             Ok(_) => 0,

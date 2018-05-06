@@ -68,6 +68,125 @@ const BOCU1_BYTE_TO_TRAIL: [i8; BOCU1_MIN as usize] = [
     -1,
 ];
 
+/// Byte value map for control codes,
+/// from trail byte values 0..19 (0..0x13) as used in the difference calculation
+/// to external byte values 0x00..0x20.
+#[cfg_attr(rustfmt, rustfmt_skip)]
+const BOCU1_TRAIL_TO_BYTE: [i8; BOCU1_TRAIL_CONTROLS_COUNT as usize] = [
+/*  0     1     2     3     4     5     6     7    */
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x10, 0x11,
+/*  8     9     a     b     c     d     e     f    */
+    0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+/*  10    11    12    13   */
+    0x1c, 0x1d, 0x1e, 0x1f,
+];
+
+/// State for BOCU-1 encoder function.
+pub struct Bocu1Tx {
+    prev: i32,
+}
+
+impl Bocu1Tx {
+    pub fn new() -> Bocu1Tx {
+        Bocu1Tx { prev: 0 }
+    }
+
+    fn encode_pack_diff(&self, diff: i32) -> i32 {
+        let mut diff = diff;
+        let lead: i32;
+        let count: i32;
+
+        if diff >= BOCU1_REACH_NEG_1 {
+            /* mostly positive differences, and single-byte negative ones */
+            if diff <= BOCU1_REACH_POS_1 {
+                /* single byte */
+                return 0x01000000 | (BOCU1_MIDDLE + diff);
+            } else if diff <= BOCU1_REACH_POS_2 {
+                /* two bytes */
+                diff -= BOCU1_REACH_POS_1 + 1;
+                lead = BOCU1_START_POS_2;
+                count = 1;
+            } else if diff <= BOCU1_REACH_POS_3 {
+                /* three bytes */
+                diff -= BOCU1_REACH_POS_2 + 1;
+                lead = BOCU1_START_POS_3;
+                count = 2;
+            } else {
+                /* four bytes */
+                diff -= BOCU1_REACH_POS_3 + 1;
+                lead = BOCU1_START_POS_4;
+                count = 3;
+            }
+        } else {
+            /* two- and four-byte negative differences */
+            if diff >= BOCU1_REACH_NEG_2 {
+                /* two bytes */
+                diff -= BOCU1_REACH_NEG_1;
+                lead = BOCU1_START_NEG_2;
+                count = 1;
+            } else if diff >= BOCU1_REACH_NEG_3 {
+                /* three bytes */
+                diff -= BOCU1_REACH_NEG_2;
+                lead = BOCU1_START_NEG_3;
+                count = 2;
+            } else {
+                /* four bytes */
+                diff -= BOCU1_REACH_NEG_3;
+                lead = BOCU1_START_NEG_4;
+                count = 3;
+            }
+        }
+
+        /* encode the length of the packed result */
+        let mut result = if count < 3 {
+            (count + 1) << 24
+        } else /* count==3, MSB used for the lead byte */ {
+            0
+        };
+
+        /* calculate trail bytes like digits in itoa() */
+        let mut shift = 0;
+        let mut count = count;
+        while {
+            let (diff2, m) = negdivmod(diff, BOCU1_TRAIL_COUNT);
+            diff = diff2;
+            result |= bocu1_trail_to_byte(m) << shift;
+            shift += 8;
+            count -= 1;
+            count > 0
+        } { }
+
+        /* add lead byte */
+        result |= (lead + diff) << shift;
+
+        result
+    }
+
+    pub fn encode_bocu1(&mut self, c: i32) -> i32 {
+        if c < 0 || c > 0x10ffff {
+            return 0;
+        }
+
+        let prev = match self.prev {
+            0 => {
+                self.prev = BOCU1_ASCII_PREV;
+                BOCU1_ASCII_PREV
+            }
+            _ => self.prev,
+        };
+
+        if c <= 0x20 {
+            if c != 0x20 {
+                self.prev = BOCU1_ASCII_PREV;
+            }
+            0x01000000 | c
+        } else {
+            self.prev = bocu1_prev(c);
+            self.encode_pack_diff(c - prev)
+        }
+    }
+}
+
 /// State for BOCU-1 decoder function.
 pub struct Bocu1Rx {
     prev: i32,
@@ -220,11 +339,31 @@ impl Bocu1Rx {
     }
 }
 
+fn negdivmod(n: i32, d: i32) -> (i32, i32) {
+    let m = n % d;
+    let n = n / d;
+    if m >= 0 {
+        (n, m)
+    } else {
+        (n - 1, m + d)
+    }
+}
+
+fn bocu1_trail_to_byte(t: i32) -> i32 {
+    if t >= BOCU1_TRAIL_CONTROLS_COUNT {
+        t + BOCU1_TRAIL_BYTE_OFFSET
+    } else {
+        BOCU1_TRAIL_TO_BYTE[t as usize] as i32
+    }
+}
+
 fn bocu1_prev(c: i32) -> i32 {
     /* compute new prev */
     if (0x3040 <= c) && (c <= 0x309f) {
+        /* Hiragana is not 128-aligned */
         0x3070
     } else if (0x4e00 <= c) && (c <= 0x9fa5) {
+        /* CJK Unihan */
         0x4e00 - BOCU1_REACH_NEG_2
     } else if (0xac00 <= c) && (c <= 0xd7a3) {
         /* Korean Hangul */
@@ -232,5 +371,13 @@ fn bocu1_prev(c: i32) -> i32 {
     } else {
         /* mostly small scripts */
         (c & (!0x7fi32)) + BOCU1_ASCII_PREV
+    }
+}
+
+pub fn bocu1_length_from_packed(packed: i32) -> u8 {
+    if packed < 0x04000000 {
+        ((packed) >> 24) as u8
+    } else {
+        4
     }
 }
