@@ -10,7 +10,6 @@ use std::io::Write;
 mod bocu1;
 use bocu1::Bocu1Rx;
 use bocu1::Bocu1Tx;
-use bocu1::bocu1_length_from_packed;
 
 #[derive(Debug)]
 enum CliError {
@@ -50,12 +49,8 @@ fn encode_file<R: Read, W: Write>(fin: &mut R, fout: &mut W) -> Result<i8, CliEr
 
     let buffer = buffer;
     for c in buffer.chars() {
-        let c = tx.encode_bocu1(c as i32);
-        let count = bocu1_length_from_packed(c);
-        for i in 0..count {
-            let shift = (count - 1 - i) * 8;
-            fout.write(&[((c >> shift) & 0xFF) as u8])?;
-        }
+        let bytes = tx.encode_bocu1_as_vec(c as i32);
+        fout.write(&bytes[..])?;
     }
     Ok(0)
 }

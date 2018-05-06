@@ -168,6 +168,17 @@ impl Bocu1Tx {
             self.encode_pack_diff(c - prev)
         }
     }
+
+    pub fn encode_bocu1_as_vec(&mut self, c: i32) -> Vec<u8> {
+        let c = self.encode_bocu1(c);
+        let count = bocu1_length_from_packed(c);
+        let mut vec: Vec<u8> = Vec::new();
+        for i in 0..count {
+            let shift = (count - 1 - i) * 8;
+            vec.push(((c >> shift) & 0xFF) as u8);
+        }
+        vec
+    }
 }
 
 /// State for BOCU-1 decoder function.
@@ -357,7 +368,7 @@ fn bocu1_prev(c: i32) -> i32 {
     }
 }
 
-pub fn bocu1_length_from_packed(packed: i32) -> u8 {
+fn bocu1_length_from_packed(packed: i32) -> u8 {
     if packed < 0x04000000 {
         ((packed) >> 24) as u8
     } else {
