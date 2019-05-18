@@ -4,11 +4,13 @@ const BOCU1_ASCII_PREV: i32 = 0x40;
 // bounding byte values for differences
 const BOCU1_MIN: i32 = 0x21;
 const BOCU1_MIDDLE: i32 = 0x90;
+#[allow(dead_code)]
 const BOCU1_MAX_LEAD: i32 = 0xfe;
 const BOCU1_MAX_TRAIL: i32 = 0xff;
 const BOCU1_RESET: i32 = 0xff;
 
 /// number of lead bytes
+#[allow(dead_code)]
 const BOCU1_COUNT: i32 = (BOCU1_MAX_LEAD - BOCU1_MIN + 1);
 
 /// adjust trail byte counts for the use of some C0 control byte values
@@ -25,6 +27,7 @@ const BOCU1_SINGLE: i32 = 64;
 // number of lead bytes for positive and negative 2/3/4-byte sequences
 const BOCU1_LEAD_2: i32 = 43;
 const BOCU1_LEAD_3: i32 = 3;
+#[allow(dead_code)]
 const BOCU1_LEAD_4: i32 = 1;
 
 // The difference value range for single-byters.
@@ -82,13 +85,15 @@ const BOCU1_TRAIL_TO_BYTE: [i8; BOCU1_TRAIL_CONTROLS_COUNT as usize] = [
 ];
 
 /// State for BOCU-1 encoder function.
+#[derive(Debug, Default)]
 pub struct Bocu1Tx {
     prev: i32,
 }
 
 impl Bocu1Tx {
-    pub fn new() -> Bocu1Tx {
-        Bocu1Tx { prev: 0 }
+    /// Create an encoder instance.
+    pub fn new() -> Self {
+        Default::default()
     }
 
     fn encode_pack_diff(&self, diff: i32) -> i32 {
@@ -182,6 +187,7 @@ impl Bocu1Tx {
 }
 
 /// State for BOCU-1 decoder function.
+#[derive(Debug, Default)]
 pub struct Bocu1Rx {
     prev: i32,
     count: i32,
@@ -189,12 +195,9 @@ pub struct Bocu1Rx {
 }
 
 impl Bocu1Rx {
-    pub fn new() -> Bocu1Rx {
-        Bocu1Rx {
-            prev: 0,
-            count: 0,
-            diff: 0,
-        }
+    /// Create a decoder instance.
+    pub fn new() -> Self {
+        Default::default()
     }
 
     fn decode_bocu1_lead_byte(&mut self, b: i32) -> i32 {
@@ -210,7 +213,8 @@ impl Bocu1Rx {
                 /* three bytes */
                 (
                     (b - BOCU1_START_POS_3) * BOCU1_TRAIL_COUNT * BOCU1_TRAIL_COUNT
-                        + BOCU1_REACH_POS_2 + 1,
+                        + BOCU1_REACH_POS_2
+                        + 1,
                     2,
                 )
             } else {
@@ -246,22 +250,21 @@ impl Bocu1Rx {
     }
 
     fn decode_bocu1_trail_byte(&mut self, b: i32) -> i32 {
-        let t: i32;
-
-        if b <= 0x20 {
+        let t = if b <= 0x20 {
             /* skip some C0 controls and make the trail byte range contiguous */
-            t = BOCU1_BYTE_TO_TRAIL[b as usize] as i32;
+            let t = BOCU1_BYTE_TO_TRAIL[b as usize] as i32;
             if t < 0 {
                 /* illegal trail byte value */
                 self.prev = BOCU1_ASCII_PREV;
                 self.count = 0;
                 return -99;
             }
+            t
         } else if (BOCU1_MAX_TRAIL < 0xff) && (b > BOCU1_MAX_TRAIL) {
             return -99;
         } else {
-            t = b - BOCU1_TRAIL_BYTE_OFFSET;
-        }
+            b - BOCU1_TRAIL_BYTE_OFFSET
+        };
 
         /* add trail byte into difference and decrement count */
         let c = self.diff;
@@ -276,13 +279,13 @@ impl Bocu1Rx {
                     self.prev = bocu1_prev(c);
                     self.count = 0;
                     return c;
-                },
+                }
                 /* illegal code point result */
                 _ => {
                     self.prev = BOCU1_ASCII_PREV;
                     self.count = 0;
                     return -99;
-                },
+                }
             };
         /* intermediate trail byte */
         } else if count == 2 {
