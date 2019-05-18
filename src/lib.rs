@@ -1,3 +1,6 @@
+//!
+#![warn(missing_docs)]
+
 /// initial value for "prev": middle of the ASCII range
 const BOCU1_ASCII_PREV: i32 = 0x40;
 
@@ -96,6 +99,21 @@ impl Bocu1Tx {
         Default::default()
     }
 
+    /// Encode a difference `-0x10ffff..0x10ffff` in 1..4 bytes
+    /// and return a packed integer with them.
+    ///
+    /// The encoding favors small absolut differences with short encodings
+    /// to compress runs of same-script characters.
+    ///
+    /// Returns:
+    /// * `0x010000zz` for 1-byte sequence `zz         `
+    /// * `0x0200yyzz` for 2-byte sequence `yy zz      `
+    /// * `0x03xxyyzz` for 3-byte sequence `xx yy zz   `
+    /// * `0xwwxxyyzz` for 4-byte sequence `ww xx yy zz` (`ww>0x03`)
+    ///
+    /// # Arguments
+    ///
+    /// * `diff` --  difference value -0x10ffff..0x10ffff
     fn encode_pack_diff(&self, diff: i32) -> i32 {
         let (mut diff, lead, count) = if diff >= BOCU1_REACH_NEG_1 {
             /* mostly positive differences, and single-byte negative ones */
@@ -150,6 +168,14 @@ impl Bocu1Tx {
         result
     }
 
+    /// BOCU-1 encoder function.
+    ///
+    /// Returns the packed 1/2/3/4-byte encoding, or 0 if an error occurs.
+    ///
+    /// # Arguments
+    ///
+    /// * `c` - the code point to encode
+    ///
     pub fn encode_bocu1(&mut self, c: i32) -> i32 {
         if c < 0 || c > 0x10ffff {
             return 0;
@@ -174,6 +200,14 @@ impl Bocu1Tx {
         }
     }
 
+    /// BOCU-1 encoder function.
+    ///
+    /// Returns the packed 1/2/3/4-byte encoding using a `u8` vector.
+    ///
+    /// # Arguments
+    ///
+    /// * `c` - the code point to encode
+    ///
     pub fn encode_bocu1_as_vec(&mut self, c: i32) -> Vec<u8> {
         let c = self.encode_bocu1(c);
         let count = bocu1_length_from_packed(c);
@@ -200,6 +234,14 @@ impl Bocu1Rx {
         Default::default()
     }
 
+    /// Function for BOCU-1 decoder; handles multi-byte lead bytes.
+    ///
+    /// Returns -1 (state change only)
+    ///
+    /// # Arguments:
+    ///
+    /// * `b` - lead byte;
+    ///         `BOCU1_MIN<=b<BOCU1_START_NEG_2` or `BOCU1_START_POS_2<=b<=BOCU1_MAX_LEAD`
     fn decode_bocu1_lead_byte(&mut self, b: i32) -> i32 {
         let (c, count) = if b >= BOCU1_START_NEG_2 {
             /* positive difference */
@@ -249,6 +291,9 @@ impl Bocu1Rx {
         -1
     }
 
+    /// Function for BOCU-1 decoder; handles multi-byte trail bytes.
+    ///
+    /// Returns result value, same as [`decode_bocu1`](#method.decode_bocu1)
     fn decode_bocu1_trail_byte(&mut self, b: i32) -> i32 {
         let t = if b <= 0x20 {
             /* skip some C0 controls and make the trail byte range contiguous */
@@ -300,6 +345,17 @@ impl Bocu1Rx {
         -1
     }
 
+    /// FBOCU-1 decoder function.
+    ///
+    /// Returns
+    /// * `0..0x10ffff` for a result code point
+    /// * `-1` if only the state changed without code point output
+    /// * `<-1` if an error occurs
+    ///
+    /// # Arguments
+    ///
+    /// * `b` -- an input byte
+    ///
     pub fn decode_bocu1(&mut self, b: u8) -> i32 {
         let b = b as i32;
         let mut prev = self.prev;
@@ -337,6 +393,16 @@ impl Bocu1Rx {
     }
 }
 
+/// Integer division and modulo with negative numerators
+/// yields negative modulo results and quotients that are one more than
+/// what we need here.
+/// This macro adjust the results so that the modulo-value m is always >=0.
+///
+/// # Arguments
+/// * `n` -- Number to be split into quotient and rest.
+///          Will be modified to contain the quotient.
+/// * `d` -- Divisor.
+/// * `m` -- Output variable for the rest (modulo result).
 fn negdivmod(n: i32, d: i32) -> (i32, i32) {
     let m = n % d;
     let n = n / d;
@@ -347,6 +413,33 @@ fn negdivmod(n: i32, d: i32) -> (i32, i32) {
     }
 }
 
+/// 12 commonly used C0 control codes (and space) are only used to encode
+/// themselves directly,
+/// which makes BOCU-1 MIME-usable and reasonably safe for
+/// ASCII-oriented software.
+///
+/// These controls are
+///
+///      0   NUL
+///
+///      7   BEL
+///      8   BS
+///
+///      9   TAB
+///      a   LF
+///      b   VT
+///      c   FF
+///      d   CR
+///
+///      e   SO
+///      f   SI
+///
+///     1a   SUB
+///     1b   ESC
+///
+/// The other 20 C0 controls are also encoded directly (to preserve order)
+/// but are also used as trail bytes in difference encoding
+/// (for better compression).
 fn bocu1_trail_to_byte(t: i32) -> i32 {
     if t >= BOCU1_TRAIL_CONTROLS_COUNT {
         t + BOCU1_TRAIL_BYTE_OFFSET
@@ -355,6 +448,14 @@ fn bocu1_trail_to_byte(t: i32) -> i32 {
     }
 }
 
+/// Compute the next "previous" value for differencing
+/// from the current code point.
+///
+/// Returns from the current code point.
+///
+/// # Arguments
+///
+/// * `c` -- current code point, `0..0x10ffff`
 fn bocu1_prev(c: i32) -> i32 {
     /* compute new prev */
     match c {
@@ -369,6 +470,7 @@ fn bocu1_prev(c: i32) -> i32 {
     }
 }
 
+/// The length of a byte sequence, according to its packed form.
 fn bocu1_length_from_packed(packed: i32) -> u8 {
     if packed < 0x04000000 {
         ((packed) >> 24) as u8
