@@ -420,22 +420,20 @@ fn negdivmod(n: i32, d: i32) -> (i32, i32) {
 ///
 /// These controls are
 ///
-///      0   NUL
-///
-///      7   BEL
-///      8   BS
-///
-///      9   TAB
-///      a   LF
-///      b   VT
-///      c   FF
-///      d   CR
-///
-///      e   SO
-///      f   SI
-///
-///     1a   SUB
-///     1b   ESC
+/// | Code | Key |
+/// |------|-----|
+/// | ` 0` | NUL |
+/// | ` 7` | BEL |
+/// | ` 8` | BS  |
+/// | ` 9` | TAB |
+/// | ` a` | LF  |
+/// | ` b` | VT  |
+/// | ` c` | FF  |
+/// | ` d` | CR  |
+/// | ` e` | SO  |
+/// | ` f` | SI  |
+/// | `1a` | SUB |
+/// | `1b` | ESC |
 ///
 /// The other 20 C0 controls are also encoded directly (to preserve order)
 /// but are also used as trail bytes in difference encoding
