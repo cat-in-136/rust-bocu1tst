@@ -7,9 +7,7 @@ use std::io::Read;
 use std::io::BufWriter;
 use std::io::Write;
 
-mod bocu1;
-use bocu1::Bocu1Rx;
-use bocu1::Bocu1Tx;
+use rust_bocu1tst::*;
 
 #[derive(Debug)]
 enum CliError {
