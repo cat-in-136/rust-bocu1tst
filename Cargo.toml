@@ -1,7 +1,16 @@
 [package]
 name = "rust-bocu1tst"
+license = "GPL-2.0-or-later"
+authors = ["@cat_in_136"]
+categories = ["command-line-utilities"]
+description = "the BOCU-1 test program just for my studying rust language"
+homepage = "https://github.com/cat-in-136/rust-bocu1tst"
+readme = "README.md"
+keywords = ["bocu-1"]
+repository = "https://github.com/cat-in-136/rust-bocu1tst"
 version = "0.2.0"
-authors = ["cat_in_136"]
 edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
